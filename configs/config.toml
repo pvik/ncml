@@ -1,0 +1,25 @@
+port = 3001
+
+workers = 1
+
+[jwt-auth]
+    enabled = true
+	secret = "abc"
+	
+# Setup Credential sets 
+[credentials]
+	
+    [credentials."cred-set-1"]
+    username = "test-user"
+    password = "abc"
+	
+	[credentials."cred-set-2"]
+    username = "test-user-2"
+    password = "def"
+
+
+[log]
+format = "text" # valid values are text or json
+output = "term" # valid values are term or file
+#log-directory = "./logs/" # needed if writing logs to a file
+level = "debug"
