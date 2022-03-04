@@ -18,6 +18,7 @@ type LogConfig struct {
 // DBConfig holds connection details to a Database for storing
 // payload details, etc
 type DBConfig struct {
+	Type     string `toml:"type"` // postgres or sqlserver
 	Host     string `toml:"host"`
 	Port     int    `toml:"port"`
 	SSLMode  bool   `toml:"sslmode"`

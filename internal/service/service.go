@@ -84,7 +84,8 @@ func InitService() {
 	}
 
 	// Initialize Database
-	db.Init(c.AppConf.DBConfig.Host,
+	db.Init(c.AppConf.DBConfig.Type,
+		c.AppConf.DBConfig.Host,
 		c.AppConf.DBConfig.Port,
 		c.AppConf.DBConfig.SSLMode,
 		c.AppConf.DBConfig.DBName,

@@ -9,6 +9,8 @@ port = 3001
 
 workers = 1
 
+result-store-dir = "/tmp/ncml"
+
 [jwt-auth]
     enabled = true
 	secret = "abc"
@@ -25,6 +27,7 @@ workers = 1
     password = "def"
 
 [db]
+type = "postgres" # or sqlserver
 host = "localhost"
 port = 5432
 ssl-mode = false
