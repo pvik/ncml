@@ -35,8 +35,8 @@ func routes() *chi.Mux {
 	r.Use(middleware.DefaultLogger)
 
 	r.Route("/ncml/v1", func(r1 chi.Router) {
-		// r1.Get("/jwt", apiJWT)
-		// r1.Get("/auth", apiAuth)
+		r1.Post("/execute", apiExec)
+		r1.Get("/result/{payloadID:[0-9]+}", apiResult)
 	})
 
 	return r

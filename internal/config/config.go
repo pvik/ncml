@@ -15,6 +15,17 @@ type LogConfig struct {
 	Level  string `toml:"level"`
 }
 
+// DBConfig holds connection details to a Database for storing
+// payload details, etc
+type DBConfig struct {
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	SSLMode  bool   `toml:"sslmode"`
+	Username string `toml:"username"`
+	Password string `toml:"password"`
+	DBName   string `toml:"dbname"`
+}
+
 type JWTConfig struct {
 	Format bool   `toml:"enabled"`
 	Secret string `toml:"secret"`
@@ -29,8 +40,10 @@ type CredentialSet struct {
 type Config struct {
 	Port           int                      `toml:"port"`
 	Workers        int                      `toml:"workers"`
+	ResultStoreDir string                   `toml:"result-store-dir"`
 	JWTConfig      JWTConfig                `toml:"jwt-auth"`
 	CredentialsMap map[string]CredentialSet `toml:"credentials"`
+	DBConfig       DBConfig                 `toml:"db"`
 	Log            LogConfig                `toml:"log"`
 }
 

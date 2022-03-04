@@ -1,6 +1,6 @@
 # NCML 
 
-A Simple service to allow NCM operations via Rest API
+A Simple service to allow NCM Script Execution operations via Rest API
 
 ## Sample Config
 
@@ -24,6 +24,13 @@ workers = 1
     username = "test-user-2"
     password = "def"
 
+[db]
+host = "localhost"
+port = 5432
+ssl-mode = false
+username = "postgres"
+password = "docker"
+dbname = "ncml"
 
 [log]
 format = "text" # valid values are text or json

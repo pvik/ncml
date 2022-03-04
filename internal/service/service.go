@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	c "github.com/pvik/ncml/internal/config"
+	"github.com/pvik/ncml/pkg/db"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -82,11 +83,22 @@ func InitService() {
 		log.SetLevel(log.PanicLevel)
 	}
 
+	// Initialize Database
+	db.Init(c.AppConf.DBConfig.Host,
+		c.AppConf.DBConfig.Port,
+		c.AppConf.DBConfig.SSLMode,
+		c.AppConf.DBConfig.DBName,
+		c.AppConf.DBConfig.Username,
+		c.AppConf.DBConfig.Password)
+	log.Info("Initialized DB")
+
 	log.Info(serviceName + " service initialized")
 }
 
 // Shutdown closes any open files or pipes the microservice started
 func Shutdown() {
+
+	db.Close()
 
 	if logFileHandle != nil {
 		// Revert logging back to StdOut
