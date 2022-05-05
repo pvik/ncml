@@ -56,17 +56,20 @@ func apiResult(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// read result file
-			result, err := ioutil.ReadFile(filepath.Join(c.AppConf.ResultStoreDir, fmt.Sprintf("%d", payload.ID)))
-			if err != nil {
-				log.Errorf("Unable to retrieve Result from disk: %s", err)
-				payload.Status = db.Error
-				payload.Error = err.Error()
+			if payload.Status == db.Completed {
+				// read result file
+				result, err := ioutil.ReadFile(filepath.Join(c.AppConf.ResultStoreDir, fmt.Sprintf("%d", payload.ID)))
+				if err != nil {
+					log.Errorf("Unable to retrieve Result from disk: %s", err)
+					payload.Status = db.Error
+					payload.Error = err.Error()
 
-				httphelper.RespondwithJSON(w, http.StatusInternalServerError, payload)
-				return
+					httphelper.RespondwithJSON(w, http.StatusInternalServerError, payload)
+					return
+				}
+				payload.Result = string(result)
 			}
-			payload.Result = string(result)
+
 			httphelper.RespondwithJSON(w, http.StatusOK, payload)
 			return
 		}
