@@ -52,6 +52,8 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 
 			pinger.Count = 1
 
+			pinger.SetPrivileged(true) // to allow ping from docker container
+
 			log.Debugf("Q: %+v", r.URL.Query())
 			pktCount, ok := r.URL.Query()["pkts"]
 			if !ok || len(pktCount) < 1 || len(pktCount[0]) < 1 {
@@ -66,7 +68,7 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 
 			err = pinger.Run() // Blocks until finished.
 			if err != nil {
-				panic(err)
+				httphelper.RespondwithJSON(w, http.StatusInternalServerError, map[string]interface{}{"state": "error", "error": err})
 			}
 			stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
 			log.Debugf("ping: %s stats: ", pingHostStr, stats)
@@ -255,7 +257,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 		defer conn.Close()
 
 		var session *ssh.Session
-		// var stdin io.WriteCloser
+		var stdin io.WriteCloser
 		var stdout, stderr io.Reader
 		session, err = conn.NewSession()
 		if err != nil {
@@ -264,25 +266,26 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 		defer session.Close()
 
 		log.Debug("session established")
-		// stdin, err = session.StdinPipe()
-		// if err != nil {
-		// 	fmt.Println(err.Error())
-		// }
+		stdin, err = session.StdinPipe()
+		if err != nil {
+			log.Errorf("Unable to open StdIn pipe: %s", (err.Error()))
+		}
 
 		stdout, err = session.StdoutPipe()
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Errorf("Unable to open StdOut pipe: %s", (err.Error()))
 		}
 
 		stderr, err = session.StderrPipe()
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Errorf("Unable to open StdErr pipe: %s", (err.Error()))
 		}
 
 		var sessionOutErrMsg error
 
 		// Session StdOut
 		go func() {
+			log.Debug("stdOut handler")
 			scanner := bufio.NewScanner(stdout)
 			// save result to file
 			f, err := os.Create(resultFileName)
@@ -292,6 +295,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			}
 
 			defer f.Close()
+			defer log.Debug("stdOut handler done")
 
 			for {
 				if tkn := scanner.Scan(); tkn {
@@ -315,26 +319,55 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 
 		// Session StdErr
 		go func() {
+			log.Debug("stdErr handler")
 			scanner := bufio.NewScanner(stderr)
 
 			for scanner.Scan() {
 				log.Errorf("StdErr: %s", scanner.Text())
 			}
+			log.Debug("stdErr handler done")
 		}()
 
-		// stdin.Write([]byte(script))
-		log.Debugf("ssh run script: %s", script)
-		err = session.Run(script)
-		if err != nil {
-			return fmt.Errorf("Unable to run script on host: %s", err)
+		// configure terminal mode
+		modes := ssh.TerminalModes{
+			ssh.ECHO: 0, // supress echo
+
 		}
+		// run terminal session
+		if err := session.RequestPty("xterm", 50, 80, modes); err != nil {
+			log.Errorf("unable to request pty: %s", err)
+		}
+
+		err = session.Shell()
+		if err != nil {
+			return fmt.Errorf("Unable to open shell on host: %s", err)
+		}
+
+		script = script + "\nexit"
+		for _, l := range strings.Split(script, "\n") {
+			log.Debugf("ssh run script line: %s", l)
+			_, err := stdin.Write([]byte(l + "\n"))
+			if err != nil {
+				log.Errorf("unable to write to stdIn: %s", err)
+			}
+		}
+
+		session.Wait()
+
+		// stdin.Write([]byte("exit\n"))
+
+		//err = session.Run(script)
+		// if err != nil {
+		// 	return fmt.Errorf("Unable to run script on host: %s", err)
+		// }
 		if sessionOutErrMsg != nil {
 			return fmt.Errorf("Error Processing Std streams from host: %s", sessionOutErrMsg)
 		}
+
+		log.Debug("sshExec done")
 
 		return nil
 	} else {
 		return fmt.Errorf("Invalid Credential Set")
 	}
-
 }
