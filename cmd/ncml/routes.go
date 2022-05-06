@@ -37,6 +37,7 @@ func routes() *chi.Mux {
 	r.Route("/ncml/v1", func(r1 chi.Router) {
 		r1.Post("/execute", apiExec)
 		r1.Get("/result/{payloadID:[0-9]+}", apiResult)
+		r1.Get("/ping/{pingHost}", apiPing)
 	})
 
 	return r

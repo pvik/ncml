@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/go-chi/chi"
+	"github.com/go-ping/ping"
 	c "github.com/pvik/ncml/internal/config"
 	"github.com/pvik/ncml/pkg/db"
 	"github.com/pvik/ncml/pkg/httphelper"
@@ -30,6 +31,52 @@ func init() {
 		go jobWorker(i)
 		i = i + 1
 	}
+}
+
+func apiPing(w http.ResponseWriter, r *http.Request) {
+	authHeaderArr, ok := r.Header["Authorization"]
+	if !ok || len(authHeaderArr) < 1 || len(authHeaderArr[0]) < 1 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if strings.HasPrefix(authHeaderArr[0], "Bearer ") {
+		tokenString := strings.Split(authHeaderArr[0], " ")[1]
+
+		if jwtAuth(tokenString) {
+			pingHostStr := chi.URLParam(r, "pingHost")
+			pinger, err := ping.NewPinger(pingHostStr)
+			if err != nil {
+				panic(err)
+			}
+
+			pinger.Count = 1
+
+			log.Debugf("Q: %+v", r.URL.Query())
+			pktCount, ok := r.URL.Query()["pkts"]
+			if !ok || len(pktCount) < 1 || len(pktCount[0]) < 1 {
+				log.Debug("query param pkts not given")
+			} else {
+				pktCountInt, err := strconv.Atoi(pktCount[0])
+				log.Debugf("pktCountInt: %d, err: %s", pktCountInt, err)
+				if err == nil {
+					pinger.Count = pktCountInt
+				}
+			}
+
+			err = pinger.Run() // Blocks until finished.
+			if err != nil {
+				panic(err)
+			}
+			stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
+			log.Debugf("ping: %s stats: ", pingHostStr, stats)
+			httphelper.RespondwithJSON(w, http.StatusOK, stats)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusUnauthorized)
+	return
 }
 
 func apiResult(w http.ResponseWriter, r *http.Request) {
