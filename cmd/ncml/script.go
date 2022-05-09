@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -51,8 +52,9 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 			}
 
 			pinger.Count = 1
+			pinger.Timeout = time.Duration(time.Second * 55)
 
-			pinger.SetPrivileged(true) // to allow ping from docker container
+			//pinger.SetPrivileged(true) // to allow ping from docker container
 
 			log.Debugf("Q: %+v", r.URL.Query())
 			pktCount, ok := r.URL.Query()["pkts"]
@@ -331,7 +333,6 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 		// configure terminal mode
 		modes := ssh.TerminalModes{
 			ssh.ECHO: 0, // supress echo
-
 		}
 		// run terminal session
 		if err := session.RequestPty("xterm", 50, 80, modes); err != nil {
