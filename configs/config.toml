@@ -32,6 +32,10 @@ username = "postgres"
 password = "docker"
 dbname = "ncml"
 
+[ping]
+privileged = false
+timeout-sec = 60
+
 [log]
 format = "text" # valid values are text or json
 output = "term" # valid values are term or file

@@ -52,9 +52,9 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 			}
 
 			pinger.Count = 1
-			pinger.Timeout = time.Duration(time.Second * 55)
+			pinger.Timeout = time.Duration(c.AppConf.Ping.TimeoutSec) * time.Second
 
-			//pinger.SetPrivileged(true) // to allow ping from docker container
+			pinger.SetPrivileged(c.AppConf.Ping.Privileged) // to allow ping from docker container
 
 			log.Debugf("Q: %+v", r.URL.Query())
 			pktCount, ok := r.URL.Query()["pkts"]
@@ -71,6 +71,7 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 			err = pinger.Run() // Blocks until finished.
 			if err != nil {
 				httphelper.RespondwithJSON(w, http.StatusInternalServerError, map[string]interface{}{"state": "error", "error": err})
+				return
 			}
 			stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
 			log.Debugf("ping: %s stats: ", pingHostStr, stats)

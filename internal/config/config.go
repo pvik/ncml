@@ -32,6 +32,11 @@ type JWTConfig struct {
 	Secret string `toml:"secret"`
 }
 
+type PingConfig struct {
+	Privileged bool `toml:"pivileged"`
+	TimeoutSec int  `toml:"timeout-sec"`
+}
+
 type CredentialSet struct {
 	Username string `toml:"username"`
 	Password string `toml:"password"`
@@ -46,6 +51,7 @@ type Config struct {
 	CredentialsMap map[string]CredentialSet `toml:"credentials"`
 	DBConfig       DBConfig                 `toml:"db"`
 	Log            LogConfig                `toml:"log"`
+	Ping           PingConfig               `toml:"ping"`
 }
 
 // AppConf package global has values parsed from config.toml
