@@ -253,6 +253,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			Auth: []ssh.AuthMethod{
 				ssh.Password(credentialSet.Password),
 			},
+			Timeout: 30 * time.Second, // 30 sec max to eestablish connection
 		}
 
 		// check if port is present
