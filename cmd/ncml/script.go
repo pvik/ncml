@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-ping/ping"
 	c "github.com/pvik/ncml/internal/config"
 	"github.com/pvik/ncml/pkg/db"
@@ -68,14 +68,23 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+			log.Debugf("w bef: %+v", w)
+
 			err = pinger.Run() // Blocks until finished.
 			if err != nil {
+				log.Errorf("ping error: %s", err)
 				httphelper.RespondwithJSON(w, http.StatusInternalServerError, map[string]interface{}{"state": "error", "error": err})
 				return
 			}
+
+			log.Debugf("w af: %+v", w)
+
 			stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
 			log.Debugf("ping: %s stats: ", pingHostStr, stats)
 			httphelper.RespondwithJSON(w, http.StatusOK, stats)
+
+			log.Debugf("w af2: %+v", w)
+
 			return
 		}
 	}

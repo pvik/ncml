@@ -33,7 +33,7 @@ type JWTConfig struct {
 }
 
 type PingConfig struct {
-	Privileged bool `toml:"pivileged"`
+	Privileged bool `toml:"privileged"`
 	TimeoutSec int  `toml:"timeout-sec"`
 }
 
@@ -46,6 +46,7 @@ type CredentialSet struct {
 type Config struct {
 	Port           int                      `toml:"port"`
 	Workers        int                      `toml:"workers"`
+	HTTPTimeoutSec int                      `toml:"http-timeout-sec"`
 	ResultStoreDir string                   `toml:"result-store-dir"`
 	JWTConfig      JWTConfig                `toml:"jwt-auth"`
 	CredentialsMap map[string]CredentialSet `toml:"credentials"`
@@ -69,6 +70,16 @@ func InitConfig(configPath string) {
 			"error": err,
 		}).Error("unable to parse config toml file")
 		panic(fmt.Errorf("unable to parse config toml file"))
+	}
+
+	if AppConf.HTTPTimeoutSec <= 0 {
+		log.Warn("Using Default HTTP Timeout (55sec)")
+		AppConf.HTTPTimeoutSec = 55
+	}
+
+	if AppConf.Ping.TimeoutSec <= 0 {
+		log.Warn("Using Default Ping Timeout (50sec)")
+		AppConf.Ping.TimeoutSec = 50
 	}
 
 	log.Infof("Config: %+v", AppConf)

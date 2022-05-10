@@ -27,8 +27,8 @@ func main() {
 	server := &http.Server{
 		Addr:         ":" + strconv.Itoa(c.AppConf.Port),
 		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  time.Duration(c.AppConf.HTTPTimeoutSec) * time.Second,
+		WriteTimeout: time.Duration(c.AppConf.HTTPTimeoutSec) * time.Second,
 	}
 
 	err := server.ListenAndServe()
