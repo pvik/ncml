@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func jwtAuth(tokenString string) bool {
+func jwtAuth(tokenString string) (bool, jwt.MapClaims) {
 
 	// Parse takes the token string and a function for looking up the key
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -22,17 +22,17 @@ func jwtAuth(tokenString string) bool {
 	})
 	if err != nil {
 		log.Errorf("parse token err: %s", err)
-		return false
+		return false, jwt.MapClaims{}
 	}
 
-	if _claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		log.Debugf("claims: %+v", _claims)
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		log.Debugf("claims: %+v", claims)
 		// if JWT has exp claim, check if it has not expired
 		//  jwt.Parse verifies token expiry
 
 		// httphelper.RespondwithJSON(w, 200, claims)
-		return true
+		return true, claims
 	}
 
-	return false
+	return false, jwt.MapClaims{}
 }
