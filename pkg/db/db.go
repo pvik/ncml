@@ -7,8 +7,6 @@ import (
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 
-	// blank import for postgres gorm dialect
-	_ "github.com/jinzhu/gorm/dialects/postgres"
 	log "github.com/sirupsen/logrus"
 )
 

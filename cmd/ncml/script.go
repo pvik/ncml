@@ -71,7 +71,7 @@ func apiPing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
-	log.Debugf("ping: %s stats: ", pingHostStr, stats)
+	log.Debugf("ping: %s stats: %+v", pingHostStr, stats)
 	httphelper.RespondwithJSON(w, http.StatusOK, stats)
 }
 

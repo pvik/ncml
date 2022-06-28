@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -42,7 +43,14 @@ func routes() *chi.Mux {
 	// processing should be stopped.
 	r.Use(middleware.Timeout(time.Duration(c.AppConf.HTTPTimeoutSec-1) * time.Second))
 
-	r.Route("/ncml/v1", func(r1 chi.Router) {
+	apiBase := "/ncml/v1"
+	if c.AppConf.InstanceName != "" {
+		apiBase = fmt.Sprintf("%s%s", c.AppConf.InstanceName, apiBase)
+	}
+
+	log.Debugf("API Base: %s", apiBase)
+
+	r.Route(apiBase, func(r1 chi.Router) {
 		r1.Use(authApiHandler)
 
 		r1.Post("/execute", apiExec)

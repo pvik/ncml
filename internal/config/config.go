@@ -48,6 +48,7 @@ type Config struct {
 	Workers        int                      `toml:"workers"`
 	HTTPTimeoutSec int                      `toml:"http-timeout-sec"`
 	ResultStoreDir string                   `toml:"result-store-dir"`
+	InstanceName   string                   `toml:"instance-name"`
 	JWTConfig      JWTConfig                `toml:"jwt-auth"`
 	CredentialsMap map[string]CredentialSet `toml:"credentials"`
 	DBConfig       DBConfig                 `toml:"db"`
