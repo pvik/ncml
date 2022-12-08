@@ -295,7 +295,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 						stdin.Write([]byte("exit\n"))
 					}
 
-					if strings.HasPrefix(strings.TrimSpace(string(rcv)), "exit") {
+					if strings.HasSuffix(strings.TrimSpace(string(rcv)), "exit") {
 						stdOutHandlerExitSent = true
 					}
 				} else {
