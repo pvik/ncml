@@ -262,10 +262,14 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			}
 
 			defer f.Close()
-			defer log.Debug("stdOut handler done")
+
+			defer func() {
+				log.Debug("stdOut handler done")
+			}()
 
 			prevLine := ""
 			sameRecv := 0
+			stdOutHandlerExitSent := false
 			for {
 				if tkn := scanner.Scan(); tkn {
 					rcv := scanner.Bytes()
@@ -290,9 +294,18 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 					if sameRecv > 2 {
 						stdin.Write([]byte("exit\n"))
 					}
+
+					if strings.HasPrefix(strings.TrimSpace(string(rcv)), "exit") {
+						stdOutHandlerExitSent = true
+					}
 				} else {
 					if scanner.Err() != nil {
-						sessionOutErrMsg = fmt.Errorf("Error receiving StdOut stream from Host: %s", scanner.Err())
+						log.Warnf("Error receiving StdOut stream from Host: %s", scanner.Err())
+						if !stdOutHandlerExitSent {
+							sessionOutErrMsg = fmt.Errorf("Error receiving StdOut stream from Host: %s", scanner.Err())
+						} else {
+							log.Warnf("Ignoring StdOut stream error, exit already rcv'd")
+						}
 					} else {
 						//fmt.Println("io.EOF")
 					}
