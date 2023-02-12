@@ -34,7 +34,7 @@ dep: ## Get the dependencies
 
 build: dep ## Build the binary file
 	mkdir -p ./bin/
-	go build -i -v -o ./bin/ $(PKGS)
+	go build -v -o ./bin/ $(PKGS)
 
 clean: ## Remove previous build
 	find bin/ -maxdepth 1 -type f -executable -exec rm {} +
