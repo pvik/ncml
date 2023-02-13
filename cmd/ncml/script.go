@@ -280,9 +280,14 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 						sameRecv = 0
 					}
 
-					log.Debugf("StdOut: %s", rcv)
-					_, err = f.Write(rcv)
-					f.Write([]byte("\n")) // explicit newline
+					log.Debugf("StdOut (%d): %s", sameRecv, rcv)
+					if sameRecv < 3 { // don;t write duplicate lines
+						_, err = f.Write(rcv)
+					}
+					if strings.TrimSpace(string(rcv)) != "" { // don't insert unnecessary newline
+						f.Write([]byte("\n")) // explicit newline
+					}
+
 					if err != nil {
 						sessionOutErrMsg = fmt.Errorf("Unable to write result: %s", err)
 					}
