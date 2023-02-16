@@ -250,6 +250,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 
 		var sessionOutErrMsg error
 
+		linesRecvdAfterCmd := 0
 		// Session StdOut
 		go func() {
 			log.Debug("stdOut handler")
@@ -280,25 +281,26 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 						sameRecv = 0
 					}
 
-					log.Debugf("StdOut (%d): %s", sameRecv, rcv)
 					if sameRecv < 3 { // don;t write duplicate lines
+						log.Debugf("StdOut (%d | %d): %s", sameRecv, linesRecvdAfterCmd, rcv)
 						_, err = f.Write(rcv)
+						linesRecvdAfterCmd = linesRecvdAfterCmd + 1
 					}
-					if strings.TrimSpace(string(rcv)) != "" { // don't insert unnecessary newline
-						f.Write([]byte("\n")) // explicit newline
-					}
-
 					if err != nil {
 						sessionOutErrMsg = fmt.Errorf("Unable to write result: %s", err)
 					}
 
+					if strings.TrimSpace(string(rcv)) != "" { // don't insert unnecessary newline
+						f.Write([]byte("\n")) // explicit newline
+					}
+
 					prevLine = string(rcv)
 
-					stdin.Write([]byte("\n"))
+					//stdin.Write([]byte("\n"))
 
-					if sameRecv > 2 {
-						stdin.Write([]byte("exit\n"))
-					}
+					// if sameRecv > 6 {
+					// 	stdin.Write([]byte("exit\n"))
+					// }
 
 					if strings.HasSuffix(strings.TrimSpace(string(rcv)), "exit") {
 						stdOutHandlerExitSent = true
@@ -363,7 +365,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			if err != nil {
 				log.Errorf("ssh timeout, try exit")
 				stdin.Write([]byte("exit\n"))
-				time.Sleep(3)
+				time.Sleep(10)
 
 				log.Errorf("ssh timeout, closing Connection/Session")
 				session.Close()
@@ -375,10 +377,22 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 		script = fmt.Sprintf("%s\nexit\n", script)
 		for _, l := range strings.Split(script, "\n") {
 			log.Debugf("ssh run script line: %s", l)
+			linesRecvdAfterCmd = 0
 			_, err := stdin.Write([]byte(l + "\n"))
 			if err != nil {
 				log.Errorf("unable to write to stdIn: %s", err)
 				break
+			}
+			stdin.Write([]byte("\n"))
+			log.Debug("stdin: WAIT for prev cmd to finish before sending next cmd")
+
+			sendNextCmd := false
+			for !sendNextCmd {
+				prevLinesRecvd := linesRecvdAfterCmd
+				time.Sleep(time.Second * 2)
+				if prevLinesRecvd == linesRecvdAfterCmd {
+					sendNextCmd = true
+				}
 			}
 		}
 
