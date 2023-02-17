@@ -201,192 +201,45 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 	credentialSet, credentialSetExists := c.AppConf.CredentialsMap[credentialSetName]
 
 	if credentialSetExists {
-		conf := &ssh.ClientConfig{
-			User:            credentialSet.Username,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Auth: []ssh.AuthMethod{
-				ssh.Password(credentialSet.Password),
-			},
-			Timeout: 30 * time.Second, // 30 sec max to eestablish connection
-		}
 
 		// check if port is present
 		hostSplit := strings.Split(host, ":")
 		if len(hostSplit) < 2 {
 			host = fmt.Sprintf("%s:22", host)
 		}
-		var conn *ssh.Client
-		conn, err := ssh.Dial("tcp", host, conf)
+
+		// save result to file
+		f, err := os.Create(resultFileName)
 		if err != nil {
-			log.Errorf("unable to dial: %s", err)
-			return fmt.Errorf("Unable to connect to host: %s", err)
-		}
-		defer conn.Close()
-
-		var session *ssh.Session
-		var stdin io.WriteCloser
-		var stdout, stderr io.Reader
-		session, err = conn.NewSession()
-		if err != nil {
-			return fmt.Errorf("Unable to establish ssh session to host: %s", err)
-		}
-		defer session.Close()
-
-		log.Debug("session established")
-		stdin, err = session.StdinPipe()
-		if err != nil {
-			log.Errorf("Unable to open StdIn pipe: %s", (err.Error()))
+			return fmt.Errorf("Unable to save result: %s", err)
 		}
 
-		stdout, err = session.StdoutPipe()
-		if err != nil {
-			log.Errorf("Unable to open StdOut pipe: %s", (err.Error()))
-		}
+		defer f.Close()
 
-		stderr, err = session.StderrPipe()
-		if err != nil {
-			log.Errorf("Unable to open StdErr pipe: %s", (err.Error()))
-		}
-
-		var sessionOutErrMsg error
-
-		// Session StdOut
-		go func() {
-			log.Debug("stdOut handler")
-			scanner := bufio.NewScanner(stdout)
-			// save result to file
-			f, err := os.Create(resultFileName)
-			if err != nil {
-				sessionOutErrMsg = fmt.Errorf("Unable to save result: %s", err)
-				return
-			}
-
-			defer f.Close()
-
-			defer func() {
-				log.Debug("stdOut handler done")
-			}()
-
-			prevLine := ""
-			sameRecv := 0
-			stdOutHandlerExitSent := false
-			for {
-				if tkn := scanner.Scan(); tkn {
-					rcv := scanner.Bytes()
-
-					if string(rcv) == prevLine {
-						sameRecv = sameRecv + 1
-					} else {
-						sameRecv = 0
-					}
-
-					log.Debugf("StdOut: %s", rcv)
-					_, err = f.Write(rcv)
-					f.Write([]byte("\n")) // explicit newline
-					if err != nil {
-						sessionOutErrMsg = fmt.Errorf("Unable to write result: %s", err)
-					}
-
-					prevLine = string(rcv)
-
-					stdin.Write([]byte("\n"))
-
-					if sameRecv > 2 {
-						stdin.Write([]byte("exit\n"))
-					}
-
-					if strings.HasSuffix(strings.TrimSpace(string(rcv)), "exit") {
-						stdOutHandlerExitSent = true
-					}
-				} else {
-					if scanner.Err() != nil {
-						log.Warnf("Error receiving StdOut stream from Host: %s", scanner.Err())
-						if !stdOutHandlerExitSent {
-							sessionOutErrMsg = fmt.Errorf("Error receiving StdOut stream from Host: %s", scanner.Err())
-						} else {
-							log.Warnf("Ignoring StdOut stream error, exit already rcv'd")
-						}
-					} else {
-						//fmt.Println("io.EOF")
-					}
-					return
-				}
-			}
-		}()
-
-		// Session StdErr
-		var stdErrMsg error
-		go func() {
-			log.Debug("stdErr handler")
-			scanner := bufio.NewScanner(stderr)
-
-			for scanner.Scan() {
-				log.Errorf("StdErr: %s", scanner.Text())
-				stdErrMsg = fmt.Errorf("%s\n%s", stdErrMsg, scanner.Text())
-			}
-			log.Debug("stdErr handler done")
-		}()
-
-		// configure terminal mode
-		modes := ssh.TerminalModes{
-			ssh.ECHO:   0, // supress echo
-			ssh.ECHONL: 1,
-			ssh.OCRNL:  1, // Translate carriage return to newline (output).
-		}
-		// run terminal session
-		if err := session.RequestPty("xterm", 50, 80, modes); err != nil {
-			log.Errorf("unable to request pty: %s", err)
-		}
-
-		err = session.Shell()
-		if err != nil {
-			return fmt.Errorf("Unable to open shell on host: %s", err)
-		}
-
-		// timeout handling
-		errChannel := make(chan error, 1)
-		timeout := 240 * time.Second
-		go func() {
-
-			if timeout > 0 {
-				time.AfterFunc(timeout, func() {
-					errChannel <- fmt.Errorf("timeout")
-				})
-			}
-
-			err := <-errChannel
-			if err != nil {
-				log.Errorf("ssh timeout, try exit")
-				stdin.Write([]byte("exit\n"))
-				time.Sleep(3)
-
-				log.Errorf("ssh timeout, closing Connection/Session")
-				session.Close()
-				conn.Close()
-			}
-			log.Debugf("ssh timeout go routine exit")
-		}()
-
-		script = fmt.Sprintf("%s\nexit\n", script)
+		terminalLength0 := false
 		for _, l := range strings.Split(script, "\n") {
-			log.Debugf("ssh run script line: %s", l)
-			_, err := stdin.Write([]byte(l + "\n"))
-			if err != nil {
-				log.Errorf("unable to write to stdIn: %s", err)
-				break
+			l = strings.TrimSpace(l)
+
+			if strings.ToLower(l) == "terminal length 0" {
+				log.Debugf("setting terminal length 0 flag")
+				terminalLength0 = true
+				continue
 			}
-		}
 
-		log.Debug("wait for cmds to finish")
-		err = session.Wait()
-		if err != nil {
-			return fmt.Errorf("error closing shell on host: %s", err)
-		}
+			if l == "" {
+				log.Debugf("empty command, ignoring...")
+				continue
+			}
 
-		errChannel <- nil
+			log.Debugf("ssh run script line: %s", l)
+			stdOut, stdErr, err := sshExecCommand(host, credentialSet.Username, credentialSet.Password, l, terminalLength0)
+			if err != nil {
+				log.Errorf("unable to execute command: %s | stdErr: %s", err, stdErr)
+				return fmt.Errorf("unable to execute command: %s | stdErr: %s", err, stdErr)
+			}
 
-		if sessionOutErrMsg != nil {
-			return fmt.Errorf("Error Processing Std streams from host: %s", sessionOutErrMsg)
+			f.Write([]byte(stdOut))
+			f.Write([]byte("\n"))
 		}
 
 		log.Debug("sshExec done")
@@ -395,4 +248,190 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 	} else {
 		return fmt.Errorf("Invalid Credential Set")
 	}
+}
+
+func sshExecCommand(host, username, password, command string, terminalLength0 bool) (string, string, error) {
+
+	conf := &ssh.ClientConfig{
+		User:            username,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		Timeout: 30 * time.Second, // 30 sec max to eestablish connection
+	}
+
+	var conn *ssh.Client
+	conn, err := ssh.Dial("tcp", host, conf)
+	if err != nil {
+		log.Errorf("unable to dial: %s", err)
+		return "", "", fmt.Errorf("Unable to connect to host: %s", err)
+	}
+	defer conn.Close()
+
+	var session *ssh.Session
+	var stdin io.WriteCloser
+	var stdout, stderr io.Reader
+	session, err = conn.NewSession()
+	if err != nil {
+		return "", "", fmt.Errorf("Unable to establish ssh session to host: %s", err)
+	}
+	defer session.Close()
+
+	log.Debug("session established")
+	stdin, err = session.StdinPipe()
+	if err != nil {
+		log.Errorf("Unable to open StdIn pipe: %s", (err.Error()))
+	}
+
+	stdout, err = session.StdoutPipe()
+	if err != nil {
+		log.Errorf("Unable to open StdOut pipe: %s", (err.Error()))
+	}
+
+	stderr, err = session.StderrPipe()
+	if err != nil {
+		log.Errorf("Unable to open StdErr pipe: %s", (err.Error()))
+	}
+
+	var sessionOutErrMsg error
+
+	// Session StdOut
+	cmdStdOut := ""
+
+	go func() {
+		log.Debug("stdOut handler")
+		scanner := bufio.NewScanner(stdout)
+
+		defer func() {
+			log.Debug("stdOut handler done")
+		}()
+
+		prevLine := ""
+		sameRecv := 0
+		stdOutHandlerExitSent := false
+		for {
+			if tkn := scanner.Scan(); tkn {
+				rcv := string(scanner.Bytes())
+
+				if rcv == prevLine {
+					sameRecv = sameRecv + 1
+				} else {
+					sameRecv = 0
+				}
+
+				if strings.TrimSpace(rcv) != "" && sameRecv < 3 {
+					log.Debugf("StdOut: %s", rcv)
+					cmdStdOut = cmdStdOut + string(rcv) + "\n"
+					stdin.Write([]byte("\n"))
+				}
+
+				prevLine = rcv
+
+				if sameRecv > 2 {
+					stdin.Write([]byte("exit\n"))
+				}
+
+				if strings.HasSuffix(strings.TrimSpace(string(rcv)), "exit") {
+					stdOutHandlerExitSent = true
+				}
+			} else {
+				if scanner.Err() != nil {
+					log.Warnf("Error receiving StdOut stream from Host: %s", scanner.Err())
+					if !stdOutHandlerExitSent {
+						sessionOutErrMsg = fmt.Errorf("Error receiving StdOut stream from Host: %s", scanner.Err())
+					} else {
+						log.Warnf("Ignoring StdOut stream error, exit already rcv'd")
+					}
+				} else {
+					//fmt.Println("io.EOF")
+				}
+				return
+			}
+		}
+	}()
+
+	// Session StdErr
+	var stdErrMsg error
+	go func() {
+		log.Debug("stdErr handler")
+		scanner := bufio.NewScanner(stderr)
+
+		for scanner.Scan() {
+			log.Errorf("StdErr: %s", scanner.Text())
+			stdErrMsg = fmt.Errorf("%s\n%s", stdErrMsg, scanner.Text())
+		}
+		log.Debug("stdErr handler done")
+	}()
+
+	// configure terminal mode
+	modes := ssh.TerminalModes{
+		ssh.ECHO:   0, // supress echo
+		ssh.ECHONL: 1,
+		ssh.OCRNL:  1, // Translate carriage return to newline (output).
+	}
+	// run terminal session
+	if err := session.RequestPty("xterm", 50, 80, modes); err != nil {
+		log.Errorf("unable to request pty: %s", err)
+	}
+
+	err = session.Shell()
+	if err != nil {
+		return cmdStdOut, "", fmt.Errorf("Unable to open shell on host: %s", err)
+	}
+
+	// timeout handling
+	errChannel := make(chan error, 1)
+	timeout := 240 * time.Second
+	go func() {
+
+		if timeout > 0 {
+			time.AfterFunc(timeout, func() {
+				errChannel <- fmt.Errorf("timeout")
+			})
+		}
+
+		err := <-errChannel
+		if err != nil {
+			log.Errorf("ssh timeout, try exit")
+			stdin.Write([]byte("exit\n"))
+			time.Sleep(3)
+
+			log.Errorf("ssh timeout, closing Connection/Session")
+			session.Close()
+			conn.Close()
+		}
+		log.Debugf("ssh timeout go routine exit")
+	}()
+
+	if terminalLength0 {
+		command = "terminal length 0\n" + command
+	}
+
+	command = fmt.Sprintf("%s\nexit\n", command)
+	for _, l := range strings.Split(command, "\n") {
+		log.Debugf("ssh run script line: %s", l)
+		_, err := stdin.Write([]byte(l + "\n"))
+		if err != nil {
+			log.Errorf("unable to write to stdIn: %s", err)
+			break
+		}
+	}
+
+	log.Debug("wait for cmds to finish")
+	err = session.Wait()
+	if err != nil {
+		return cmdStdOut, "", fmt.Errorf("error closing shell on host: %s", err)
+	}
+
+	errChannel <- nil
+
+	if sessionOutErrMsg != nil {
+		return cmdStdOut, fmt.Sprintf("%s", sessionOutErrMsg), fmt.Errorf("Error Processing Std streams from host: %s", sessionOutErrMsg)
+	}
+
+	log.Debug("sshExec done")
+
+	return cmdStdOut, "", nil
+
 }
