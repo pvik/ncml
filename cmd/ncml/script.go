@@ -281,17 +281,21 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 						sameRecv = 0
 					}
 
+					linesRecvdAfterCmd = linesRecvdAfterCmd + 1
+
 					if sameRecv < 3 { // don;t write duplicate lines
 						log.Debugf("StdOut (%d | %d): %s", sameRecv, linesRecvdAfterCmd, rcv)
+
+						// write line to result file
 						_, err = f.Write(rcv)
-						linesRecvdAfterCmd = linesRecvdAfterCmd + 1
+						if strings.TrimSpace(string(rcv)) != "" { // don't insert unnecessary newline
+							f.Write([]byte("\n")) // explicit newline
+						}
+
+						//stdin.Write([]byte("\n"))
 					}
 					if err != nil {
 						sessionOutErrMsg = fmt.Errorf("Unable to write result: %s", err)
-					}
-
-					if strings.TrimSpace(string(rcv)) != "" { // don't insert unnecessary newline
-						f.Write([]byte("\n")) // explicit newline
 					}
 
 					prevLine = string(rcv)
@@ -314,8 +318,14 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 							log.Warnf("Ignoring StdOut stream error, exit already rcv'd")
 						}
 					} else {
-						//fmt.Println("io.EOF")
+						fmt.Println("stdOut: EOF")
 					}
+
+					// closing connection
+					fmt.Println("stdOut: Closing session & conn")
+					// session.Close()
+					// conn.Close()
+
 					return
 				}
 			}
@@ -374,7 +384,7 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			log.Debugf("ssh timeout go routine exit")
 		}()
 
-		script = fmt.Sprintf("%s\nexit\n", script)
+		script = fmt.Sprintf("%s\nexit\nexit\nexit\n", script)
 		for _, l := range strings.Split(script, "\n") {
 			log.Debugf("ssh run script line: %s", l)
 			linesRecvdAfterCmd = 0
@@ -389,14 +399,15 @@ func sshExec(host, credentialSetName, script, resultFileName string) error {
 			sendNextCmd := false
 			for !sendNextCmd {
 				prevLinesRecvd := linesRecvdAfterCmd
-				time.Sleep(time.Second * 2)
+				time.Sleep(time.Second * 4)
 				if prevLinesRecvd == linesRecvdAfterCmd {
 					sendNextCmd = true
 				}
 			}
+			log.Debug("stdin: cmd finished")
 		}
 
-		log.Debug("wait for cmds to finish")
+		log.Debug("wait for session to finish")
 		err = session.Wait()
 		if err != nil {
 			return fmt.Errorf("error closing shell on host: %s", err)
