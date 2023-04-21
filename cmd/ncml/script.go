@@ -377,7 +377,7 @@ func sshExecCommand(host, username, password, command string, terminalLength0 bo
 
 	err = session.Shell()
 	if err != nil {
-		return cmdStdOut, "", fmt.Errorf("Unable to open shell on host: %s", err)
+		return cmdStdOut, fmt.Sprintf("%s", stdErrMsg), fmt.Errorf("Unable to open shell on host: %s", err)
 	}
 
 	// timeout handling
@@ -421,13 +421,16 @@ func sshExecCommand(host, username, password, command string, terminalLength0 bo
 	log.Debug("wait for cmds to finish")
 	err = session.Wait()
 	if err != nil {
-		return cmdStdOut, "", fmt.Errorf("error closing shell on host: %s", err)
+		log.Warnf("Error from wait: %s | stdErr: %s | sessionOutErrMsg : %s ", err, stdErrMsg, sessionOutErrMsg)
+		if !strings.HasPrefix(fmt.Sprintf("%s", err), "wait: remote command exited without exit status or exit signal") {
+			return cmdStdOut, fmt.Sprintf("%s", stdErrMsg), fmt.Errorf("error closing shell on host: %s", err)
+		}
 	}
 
 	errChannel <- nil
 
 	if sessionOutErrMsg != nil {
-		return cmdStdOut, fmt.Sprintf("%s", sessionOutErrMsg), fmt.Errorf("Error Processing Std streams from host: %s", sessionOutErrMsg)
+		return cmdStdOut, fmt.Sprintf("%s", sessionOutErrMsg), fmt.Errorf("Error Processing Std streams from host: %s | stdErr: %s", sessionOutErrMsg, stdErrMsg)
 	}
 
 	log.Debug("sshExec done")
